@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K线入门 · 交互式学习</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, "Microsoft YaHei", sans-serif; background: #0d1117; color: #c9d1d9; display: flex; height: 100vh; overflow: hidden; }
+.sidebar { width: 360px; background: #161b22; padding: 20px; overflow-y: auto; border-right: 1px solid #30363d; flex-shrink: 0; }
+.main { flex: 1; display: flex; flex-direction: column; }
+.chart-area { flex: 1; min-height: 0; }
+h1 { font-size: 20px; color: #58a6ff; margin-bottom: 4px; }
+.subtitle { font-size: 12px; color: #8b949e; margin-bottom: 20px; }
+.section { margin-bottom: 20px; }
+.section-title { font-size: 13px; font-weight: 600; color: #f0f6fc; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #21262d; }
+.pattern-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pattern-btn { background: #21262d; border: 1px solid #30363d; border-radius: 8px; padding: 12px; cursor: pointer; text-align: left; transition: .15s; color: #c9d1d9; font-size: 12px; }
+.pattern-btn:hover { border-color: #58a6ff; background: #1c2430; }
+.pattern-btn.active { border-color: #58a6ff; background: #13233a; }
+.pattern-btn .icon { font-size: 20px; margin-bottom: 4px; display: block; }
+.pattern-btn .name { display: block; font-weight: 600; margin-bottom: 2px; }
+.pattern-btn .desc { font-size: 11px; color: #8b949e; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11px; color: #8b949e; margin-bottom: 12px; }
+.legend span { display: flex; align-items: center; gap: 4px; }
+.legend .dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.kline-info { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px; margin-top: 12px; }
+.kline-info .item { background: #21262d; border-radius: 6px; padding: 8px 10px; }
+.kline-info .label { color: #8b949e; }
+.kline-info .value { color: #f0f6fc; font-weight: 600; font-size: 14px; margin-top: 2px; }
+.ma-ctrl { display: flex; gap: 8px; margin-top: 8px; }
+.ma-ctrl label { font-size: 11px; display: flex; align-items: center; gap: 4px; cursor: pointer; color: #8b949e; }
+.ma-ctrl input { accent-color: #58a6ff; }
+.hint { font-size: 11px; color: #8b949e; margin-top: 4px; line-height: 1.5; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+.badge-up { background: #1a3d2e; color: #3fb950; }
+.badge-down { background: #3d1a1a; color: #f85149; }
+#mainChart { width: 100%; height: 70%; }
+#volChart { width: 100%; height: 30%; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h1>🕯️ K线入门学习</h1>
+  <p class="subtitle">鼠标悬停图表看详情 · 点击形态按钮跳转示例</p>
+
+  <div class="section">
+    <div class="section-title">📖 常见K线形态</div>
+    <div class="pattern-grid">
+      <button class="pattern-btn active" onclick="showPattern('all')">
+        <span class="icon">📊</span><span class="name">全部数据</span><span class="desc">30个交易日完整走势</span>
+      </button>
+      <button class="pattern-btn" onclick="showPattern('big-yang')">
+        <span class="icon">⬆️</span><span class="name">大阳线</span><span class="desc">长实体 无影线</span>
+      </button>
+      <button class="pattern-btn" onclick="showPattern('big-yin')">
+        <span class="icon">⬇️</span><span class="name">大阴线</span><span class="desc">长实体 无影线</span>
+      </button>
+      <button class="pattern-btn" onclick="showPattern('hammer')">
+        <span class="icon">🔨</span><span class="name">锤子线</span><span class="desc">长下影 小实体</span>
+      </button>
+      <button class="pattern-btn" onclick="showPattern('doji')">
+        <span class="icon">➕</span><span class="name">十字星</span><span class="desc">极短实体 多空平衡</span>
+      </button>
+      <button class="pattern-btn" onclick="showPattern('engulf')">
+        <span class="icon">🔄</span><span class="name">吞没形态</span><span class="desc">反色吞前一根</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">🎨 图例</div>
+    <div class="legend">
+      <span><span class="dot" style="background:#3fb950"></span> 阳线(涨)</span>
+      <span><span class="dot" style="background:#f85149"></span> 阴线(跌)</span>
+      <span><span class="dot" style="background:#f0b90b;width:12px;height:1px;border-radius:0"></span> MA5</span>
+      <span><span class="dot" style="background:#e362e3;width:12px;height:1px;border-radius:0"></span> MA10</span>
+      <span><span class="dot" style="background:#58a6ff;width:12px;height:1px;border-radius:0"></span> MA20</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">⚙️ 均线显示</div>
+    <div class="ma-ctrl">
+      <label><input type="checkbox" checked onchange="toggleMA(0)"> MA5</label>
+      <label><input type="checkbox" checked onchange="toggleMA(1)"> MA10</label>
+      <label><input type="checkbox" checked onchange="toggleMA(2)"> MA20</label>
+      <label><input type="checkbox" checked onchange="toggleVolume()"> 成交量</label>
+    </div>
+    <p class="hint">💡 MA5上穿MA20 = <span style="color:#3fb950">金叉(看涨)</span><br>MA5下穿MA20 = <span style="color:#f85149">死叉(看跌)</span></p>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📋 当前K线数据</div>
+    <div class="kline-info" id="klineInfo">
+      <div class="item"><span class="label">开盘</span><div class="value">--</div></div>
+      <div class="item"><span class="label">收盘</span><div class="value">--</div></div>
+      <div class="item"><span class="label">最高</span><div class="value">--</div></div>
+      <div class="item"><span class="label">最低</span><div class="value">--</div></div>
+    </div>
+    <p class="hint" id="klineNote" style="margin-top:8px">👆 鼠标悬停任意K线查看详情</p>
+  </div>
+
+  <div class="section">
+    <p class="hint">
+      📌 <b>一根K线 = 4个价格</b><br>
+      开盘价 · 收盘价 · 最高价 · 最低价<br><br>
+      📌 <b>基金看什么</b><br>
+      • 连续阳线 = 上涨趋势<br>
+      • 均线多头排列 = 强势<br>
+      • 成交量放大 = 真金白银在进
+    </p>
+  </div>
+</div>
+
+<div class="main">
+  <div id="mainChart" class="chart-area"></div>
+  <div id="volChart" class="chart-area"></div>
+</div>
+
+<script>
+// ======================== SAMPLE DATA ========================
+function rand(center, range) { return +(center + (Math.random() - 0.5) * range).toFixed(2); }
+
+function generateData(days, base, volatility, pattern) {
+  const data = [];
+  const dates = [];
+  let close = base;
+  const now = new Date();
+
+  for (let i = 0; i < days; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - (days - 1 - i));
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+
+  for (let i = 0; i < days; i++) {
+    let open, high, low, vol;
+
+    if (pattern === 'big-yang' && i === days - 1) {
+      open = close - volatility * 0.2;
+      close = close + volatility * 2.5;
+      high = close + volatility * 0.1;
+      low = open - volatility * 0.1;
+      vol = 800000;
+    } else if (pattern === 'big-yin' && i === days - 1) {
+      open = close + volatility * 0.3;
+      close = close - volatility * 2.3;
+      high = open + volatility * 0.1;
+      low = close - volatility * 0.1;
+      vol = 750000;
+    } else if (pattern === 'hammer' && i >= days - 1) {
+      if (i === days - 1) {
+        open = close - volatility * 0.3;
+        close = open + volatility * 0.2;
+        high = close + volatility * 0.1;
+        low = open - volatility * 4;
+        vol = 600000;
+      } else {
+        // preceding downtrend
+        const change = -volatility * (0.5 + Math.random() * 1.5);
+        open = close;
+        close = close + change;
+        high = open + volatility * 0.2;
+        low = close - volatility * 0.3;
+        vol = 300000 + Math.random() * 200000;
+      }
+    } else if (pattern === 'doji' && i === days - 1) {
+      const mid = close;
+      open = mid + volatility * 0.05;
+      close = mid - volatility * 0.03;
+      high = mid + volatility * 2;
+      low = mid - volatility * 2;
+      vol = 350000;
+    } else if (pattern === 'engulf' && i >= days - 1) {
+      if (i === days - 2) {
+        // small red candle
+        open = close;
+        close = close + volatility * 0.4;
+        high = close + volatility * 0.2;
+        low = open - volatility * 0.3;
+        vol = 200000;
+      } else if (i === days - 1) {
+        // big green engulfing
+        open = close - volatility * 0.3;
+        close = close + volatility * 2.8;
+        high = close + volatility * 0.3;
+        low = open - volatility * 0.8;
+        vol = 900000;
+      }
+    } else {
+      const change = (Math.random() - 0.48) * volatility;
+      open = close;
+      close = +(close + change).toFixed(2);
+      if (close <= 0) close = open + Math.abs(change);
+      high = +Math.max(open, close, open + Math.random() * volatility * 0.8).toFixed(2);
+      low = +Math.min(open, close, open - Math.random() * volatility * 0.8).toFixed(2);
+      vol = Math.floor(100000 + Math.random() * 500000);
+    }
+
+    data.push([open, close, Math.min(low, Math.min(open, close)), Math.max(high, Math.max(open, close))]);
+    data[i].vol = vol;
+    data[i].date = dates[i];
+    if (close <= 0) close = data[i][1];
+  }
+
+  // Calculate MAs
+  for (let i = 0; i < days; i++) {
+    for (const ma of [5, 10, 20]) {
+      if (i >= ma - 1) {
+        let sum = 0;
+        for (let j = i - ma + 1; j <= i; j++) sum += data[j][1];
+        data[i]['ma' + ma] = +(sum / ma).toFixed(2);
+      }
+    }
+  }
+
+  return data;
+}
+
+// ======================== CHART INIT ========================
+let allData = generateData(30, 25, 1.5, 'all');
+let currentPattern = 'all';
+let maVisibility = [true, true, true];
+let volumeVisible = true;
+let mainChart, volChart;
+
+function buildCandlestickData(data) {
+  return data.map((d, i) => ({
+    value: [i, d[0], d[3], d[1], d[2]],
+    vol: d.vol,
+    date: d.date,
+    itemStyle: {
+      color: d[1] >= d[0] ? '#3fb950' : '#f85149',
+      color0: '#f85149',
+      borderColor: d[1] >= d[0] ? '#3fb950' : '#f85149',
+      borderColor0: '#f85149'
+    }
+  }));
+}
+
+function buildMALine(data, period) {
+  const result = [];
+  for (let i = 0; i < data.length; i++) {
+    if (data[i]['ma' + period] !== undefined) {
+      result.push([i, data[i]['ma' + period]]);
+    }
+  }
+  return result;
+}
+
+function buildVolumeData(data) {
+  return data.map((d, i) => ({
+    value: [i, d.vol],
+    itemStyle: { color: d[1] >= d[0] ? '#3fb95080' : '#f8514980' }
+  }));
+}
+
+function renderCharts(data) {
+  const dates = data.map(d => d.date);
+  const kdata = buildCandlestickData(data);
+  const vdata = buildVolumeData(data);
+
+  // Main K-line chart
+  const mainOption = {
+    backgroundColor: 'transparent',
+    grid: { left: 50, right: 20, top: 20, bottom: 10 },
+    xAxis: {
+      type: 'category',
+      data: dates,
+      axisLine: { lineStyle: { color: '#30363d' } },
+      axisTick: { show: false },
+      axisLabel: { color: '#8b949e', fontSize: 10, formatter: v => v.slice(5) },
+      splitLine: { show: false }
+    },
+    yAxis: {
+      type: 'value',
+      scale: true,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: '#8b949e', fontSize: 10 },
+      splitLine: { lineStyle: { color: '#21262d' } }
+    },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'cross' },
+      backgroundColor: '#161b22',
+      borderColor: '#30363d',
+      textStyle: { color: '#f0f6fc', fontSize: 12 },
+      formatter: function(params) {
+        const d = data[params[0].dataIndex];
+        if (!d) return '';
+        const change = (d[1] - d[0]).toFixed(2);
+        const pct = ((d[1] - d[0]) / d[0] * 100).toFixed(2);
+        const cls = d[1] >= d[0] ? '#3fb950' : '#f85149';
+        let html = `<b>${d.date}</b><br/>`;
+        html += `开盘: <b>${d[0]}</b> &nbsp;收盘: <b style="color:${cls}">${d[1]}</b><br/>`;
+        html += `最高: <b>${d[3]}</b> &nbsp;最低: <b>${d[2]}</b><br/>`;
+        html += `涨跌: <b style="color:${cls}">${change} (${pct}%)</b><br/>`;
+        html += `成交量: <b>${(d.vol / 10000).toFixed(1)}万手</b><br/>`;
+        for (const ma of [5, 10, 20]) {
+          if (d['ma' + ma] !== undefined) html += `MA${ma}: <b>${d['ma' + ma]}</b><br/>`;
+        }
+        return html;
+      }
+    },
+    series: [
+      {
+        name: 'K线',
+        type: 'candlestick',
+        data: kdata,
+        itemStyle: {
+          color: '#3fb950',
+          color0: '#f85149',
+          borderColor: '#3fb950',
+          borderColor0: '#f85149'
+        },
+        markPoint: getMarkPoints(data)
+      }
+    ]
+  };
+
+  // MA lines
+  const maColors = ['#f0b90b', '#e362e3', '#58a6ff'];
+  for (let mi = 0; mi < 3; mi++) {
+    if (maVisibility[mi]) {
+      mainOption.series.push({
+        name: 'MA' + [5, 10, 20][mi],
+        type: 'line',
+        data: buildMALine(data, [5, 10, 20][mi]),
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { color: maColors[mi], width: 1.5 },
+        itemStyle: { color: maColors[mi] }
+      });
+    }
+  }
+
+  // Volume chart
+  const volOption = {
+    backgroundColor: 'transparent',
+    grid: { left: 50, right: 20, top: 5, bottom: 25 },
+    xAxis: {
+      type: 'category',
+      data: dates,
+      axisLine: { lineStyle: { color: '#30363d' } },
+      axisTick: { show: false },
+      axisLabel: { show: false },
+      splitLine: { show: false }
+    },
+    yAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: '#8b949e', fontSize: 9, formatter: v => (v / 10000).toFixed(0) + '万' },
+      splitLine: { lineStyle: { color: '#21262d' } }
+    },
+    series: [{
+      name: '成交量',
+      type: 'bar',
+      data: vdata,
+      barWidth: '60%'
+    }]
+  };
+
+  if (!volumeVisible) volOption.series = [];
+
+  mainChart.setOption(mainOption, true);
+  volChart.setOption(volOption, true);
+
+  // Bind events
+  mainChart.off('click');
+  mainChart.on('click', function(params) {
+    if (params.dataIndex !== undefined && data[params.dataIndex]) {
+      updateInfo(data[params.dataIndex]);
+    }
+  });
+  mainChart.off('mousemove');
+  mainChart.on('mousemove', function(params) {
+    if (params.dataIndex !== undefined && data[params.dataIndex]) {
+      updateInfo(data[params.dataIndex]);
+    }
+  });
+}
+
+function getMarkPoints(data) {
+  const last = data.length - 1;
+  if (currentPattern === 'hammer') {
+    const d = data[last];
+    return {
+      data: [{
+        name: '锤子线',
+        coord: [last, d[2]],
+        value: '🔨 锤子线',
+        symbol: 'pin',
+        symbolSize: 50,
+        itemStyle: { color: '#f0b90b' },
+        label: { formatter: '🔨 锤子线\n底部反转信号', fontSize: 12, color: '#f0b90b', distance: 20 }
+      }]
+    };
+  }
+  if (currentPattern === 'doji') {
+    return {
+      data: [{
+        name: '十字星',
+        coord: [last, data[last][1]],
+        value: '➕',
+        symbol: 'diamond',
+        symbolSize: 40,
+        itemStyle: { color: '#e362e3' },
+        label: { formatter: '➕ 十字星\n即将变盘', fontSize: 12, color: '#e362e3', distance: 20 }
+      }]
+    };
+  }
+  if (currentPattern === 'engulf') {
+    return {
+      data: [{
+        name: '吞没',
+        coord: [last, data[last][1]],
+        value: '🔄',
+        symbol: 'roundRect',
+        symbolSize: 50,
+        itemStyle: { color: '#58a6ff' },
+        label: { formatter: '🔄 吞没形态\n强烈反转', fontSize: 12, color: '#58a6ff', distance: 22 }
+      }]
+    };
+  }
+  return {};
+}
+
+function updateInfo(d) {
+  const change = (d[1] - d[0]).toFixed(2);
+  const pct = ((d[1] - d[0]) / d[0] * 100).toFixed(2);
+  const up = d[1] >= d[0];
+  const badge = up ? `<span class="badge badge-up">+${pct}%</span>` : `<span class="badge badge-down">${pct}%</span>`;
+  document.getElementById('klineInfo').innerHTML = `
+    <div class="item"><span class="label">开盘</span><div class="value">${d[0]}</div></div>
+    <div class="item"><span class="label">收盘 ${badge}</span><div class="value" style="color:${up?'#3fb950':'#f85149'}">${d[1]}</div></div>
+    <div class="item"><span class="label">最高</span><div class="value">${d[3]}</div></div>
+    <div class="item"><span class="label">最低</span><div class="value">${d[2]}</div></div>
+  `;
+
+  const note = document.getElementById('klineNote');
+  const upper = d[3] - Math.max(d[0], d[1]);
+  const lower = Math.min(d[0], d[1]) - d[2];
+  const body = Math.abs(d[1] - d[0]);
+
+  let analysis = '';
+  if (body > 2.5) analysis = '实体很长 → 当天走势非常强势';
+  else if (body < 0.1) analysis = '实体极短 → 多空犹豫，十字星';
+  else analysis = '实体适中';
+
+  if (lower > body * 3) analysis += ' · 下影线很长 → 跌不下去，有支撑';
+  if (upper > body * 3) analysis += ' · 上影线很长 → 涨不上去，有压力';
+
+  note.innerHTML = `📌 ${d.date}：${analysis}<br>成交量：${(d.vol/10000).toFixed(1)}万手（${d.vol>500000?'放量':'缩量'}）`;
+}
+
+// ======================== PATTERN SWITCH ========================
+function showPattern(pattern) {
+  currentPattern = pattern;
+  document.querySelectorAll('.pattern-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`[onclick="showPattern('${pattern}')"]`)?.classList.add('active');
+
+  const base = 24 + Math.random() * 3;
+  if (pattern === 'big-yang') allData = generateData(12, base, 0.8, 'big-yang');
+  else if (pattern === 'big-yin') allData = generateData(12, base + 2, 0.8, 'big-yin');
+  else if (pattern === 'hammer') allData = generateData(12, base + 1.5, 0.8, 'hammer');
+  else if (pattern === 'doji') allData = generateData(12, base + 0.5, 0.8, 'doji');
+  else if (pattern === 'engulf') allData = generateData(12, base, 0.8, 'engulf');
+  else allData = generateData(30, base, 1.5, 'all');
+
+  renderCharts(allData);
+}
+
+function toggleMA(idx) {
+  maVisibility[idx] = !maVisibility[idx];
+  renderCharts(allData);
+}
+
+function toggleVolume() {
+  volumeVisible = !volumeVisible;
+  renderCharts(allData);
+}
+
+// ======================== INIT ========================
+window.addEventListener('DOMContentLoaded', () => {
+  mainChart = echarts.init(document.getElementById('mainChart'));
+  volChart = echarts.init(document.getElementById('volChart'));
+  renderCharts(allData);
+
+  // Link charts
+  mainChart.group = 'klineGroup';
+  volChart.group = 'klineGroup';
+  echarts.connect('klineGroup');
+});
+
+window.addEventListener('resize', () => {
+  mainChart?.resize();
+  volChart?.resize();
+});
+</script>
+</body>
+</html>

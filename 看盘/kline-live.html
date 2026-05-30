@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K线看盘 · 白话分析</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style id="sunSphereCSS">
+.sun-sphere{position:fixed;bottom:20px;right:20px;z-index:99999;font-family:"Microsoft YaHei",sans-serif}
+.sun-sphere .ball{width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#ff6b35,#f7931a,#ffd700);box-shadow:0 4px 20px rgba(255,107,53,.5);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:30px;transition:.2s;animation:sf3 3s ease-in-out infinite}
+.sun-sphere .ball:hover{transform:scale(1.1);box-shadow:0 6px 28px rgba(255,107,53,.7)}
+.sun-sphere .ball:active{transform:scale(.95)}
+.sun-sphere .chat{display:none;position:absolute;bottom:70px;right:0;width:340px;max-height:480px;background:#161b22;border:1px solid #30363d;border-radius:12px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.6)}
+.sun-sphere .chat.open{display:flex;flex-direction:column}
+.sun-sphere .chat-header{background:linear-gradient(135deg,#ff6b35,#f7931a);padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
+.sun-sphere .chat-header h3{color:#fff;font-size:14px;margin:0}
+.sun-sphere .chat-msgs{flex:1;overflow-y:auto;padding:12px;max-height:300px;display:flex;flex-direction:column;gap:8px}
+.sun-sphere .msg{max-width:85%;padding:8px 12px;border-radius:10px;font-size:12px;line-height:1.6;animation:smIn .25s}
+.sun-sphere .msg.sun{background:#21262d;color:#c9d1d9;align-self:flex-start;border-bottom-left-radius:2px}
+.sun-sphere .msg.user{background:#1a3d2e;color:#d2f0d2;align-self:flex-end;border-bottom-right-radius:2px}
+.sun-sphere .msg .time{font-size:9px;color:#8b949e;margin-top:3px}
+.sun-sphere .quick-btns{display:flex;flex-wrap:wrap;gap:4px;padding:8px 12px;border-top:1px solid #21262d}
+.sun-sphere .quick-btn{background:#21262d;border:1px solid #30363d;border-radius:12px;padding:4px 10px;font-size:10px;color:#f0b90b;cursor:pointer;white-space:nowrap}
+.sun-sphere .quick-btn:hover{background:#1c2430;border-color:#f0b90b}
+.sun-sphere .input-row{display:flex;border-top:1px solid #30363d}
+.sun-sphere .input-row input{flex:1;background:#0d1117;border:none;color:#c9d1d9;padding:10px 12px;font-size:12px;outline:none}
+.sun-sphere .input-row button{background:#f7931a;color:#fff;border:none;padding:10px 16px;cursor:pointer;font-weight:600;font-size:12px}
+@keyframes sf3{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes smIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+</style>
+<div class="sun-sphere" id="sunSphereRoot">
+<div class="ball" id="sunBall" title="问孙哥">🟠</div>
+<div class="chat" id="sunChat">
+<div class="chat-header"><h3 id="sunChatTitle">🟠 孙哥聊投资</h3><div><button id="sunInboxBtn" style="color:#fff;cursor:pointer;font-size:13px;background:rgba(255,255,255,.15);border:none;border-radius:4px;padding:3px 8px;margin-right:6px">📬 信箱</button><button id="sunClose" style="color:#fff;cursor:pointer;font-size:18px;background:none;border:none">✕</button></div></div>
+<div class="chat-msgs" id="sunMsgs"><div class="msg sun">👋 来了？我是孙宇晨。有问题直接问——AI产业链、投资策略、赛道判断都行。别绕弯子。<div class="time">现在</div></div></div>
+<div style="display:none;flex:1;overflow-y:auto;padding:12px" id="sunInbox">
+<div style="font-size:13px;font-weight:600;color:#f0f6fc;margin-bottom:8px">📬 孙哥动态时间线</div>
+<div style="display:flex;flex-direction:column;gap:10px" id="sunTimeline"></div>
+</div>
+<div class="quick-btns" id="sunQuick"></div>
+<div class="input-row"><input id="sunInput" placeholder="问孙哥..." /><button id="sunSend">发</button></div>
+</div>
+</div>
+<script src="../sun-data.js"></script>
+<script>
+(function(){
+if(window.SUN_DATA&&window.SUN_DATA.knowledge){var K=window.SUN_DATA.knowledge;var TL=window.SUN_DATA.timeline;var qs=window.SUN_DATA.quickBtns;}else{var K=[{q:"怎么看AI",a:"AI现在就是2000年的互联网——基础设施还在建，应用刚开始冒头。短期缺芯片、长期缺能源、永远缺存储。你别只盯着英伟达——光模块、液冷、HBM，每个环节都有肉吃。但我告诉你最核心的一点：token就是新时代的石油。未来衡量一个国家强不强，不靠GDP，靠算力消耗。"},{q:"怎么看比特币",a:"我2012年就买了，当时$13。现在回头看，任何时候买都是对的，只要你拿得住。但你现在问我——我会说比特币已经是'数字黄金'了，确定性很高但爆发力不如新东西。想赚100倍？你得在99%的人不知道钱包怎么用的时候进去。"},{q:"怎么看区块链",a:"链取代银行——这不是口号，是已经在发生的事。波场一天处理1000万笔交易，稳定币转账占公链总量98%。你打开银行APP转账要手续费、要等、要工作日——你用TRC-20转USDT，几秒钟、几毛钱。这就是范式转移。你还在质疑的时候，基础设施已经建好了。"},{q:"怎么看风险",a:"我投的东西90%的人都觉得是骗局。2016年我叫人买比特币、买英伟达，所有人说我是传销。十年后呢？我现在投太空经济、具身智能、无人机——一样有人说我疯了。风险这个东西，你要区分'别人觉得有风险'和'真的有风险'。前者是机会，后者才是坑。不敢在争议中下注的人，永远只能喝汤。"},{q:"怎么做决策",a:"三个问题：第一，这个赛道方向对不对？（AI、区块链、太空——方向确定）第二，竞争格局怎么样？（赢者通吃还是百花齐放？）第三，风险回报比合不合理？（下跌有限、上涨无限就值得赌）。三个都过了，就别犹豫。犹豫比做错更致命。数据驱动快速迭代，错了就改，但不动就是等死。"},{q:"怎么看争议",a:"被误解才有传播力。我拍下巴菲特午餐、吃香蕉艺术品——你觉得我真的是在吃饭吃香蕉吗？我在用最低的成本让全世界记住我。在这个注意力极度稀缺的时代，争议是最便宜的流量。前提是你有真东西——流量来了你接得住。很多人只有争议没有产品，那是小丑。"},{q:"怎么看钱",a:"钱是工具不是目的。我25岁身价过亿，但我从来没有因为'有钱了'就停下来。钱给你的是试错的资本——你可以投一些别人不敢投的东西。年轻人别攒钱，攒认知。认知才是永远涨的资产。还有，现金为王——永远留够让你活两年的现金，这样你才敢在别人恐惧的时候贪婪。"},{q:"怎么看失败",a:"我在加密行业活了十年。比我体面的人多已消失。SEC起诉我、中国封杀我、同行骂我——每次我都活下来了，而且越活越大。失败不可怕——可怕的是失败了就消失了。我的经验：永远留够现金、亏损的仓位果断砍、别跟规则硬刚——绕着走。生存本身就是一种被低估的能力。"},{q:"现在该做什么",a:"第一，立刻用AI工具——ChatGPT、Claude、豆包，随便哪个先用起来。AI不是来替代你的，是来放大你的。第二，用定投方式买科技资产——不要等'好时机'，最好的时机永远是现在。第三，把时间全部投入学习新东西。AI时代，不学习的人就像马车夫在汽车时代拒绝考驾照。"},{q:"你怎么投资的",a:"我有个核心框架叫'两端下注'。找到确定性的赛道，不赌单一公司，在供给端和需求端同时下注。比如机器人赛道：特斯拉做身体+英伟达做大脑，不管谁赢我都赚。AI赛道也是一样：买芯片（英伟达）+ 买应用（AI Agent平台）。别纠结谁会赢——赛道跑通了你就赢了。"},{q:"什么是提前半步",a:"这是我的核心方法论。永远比别人早半步看到趋势。太早了会死（比如2000年投互联网基础设施的很多都死了），太晚了只能喝汤（等所有人都说该买的时候，该卖的人已经在路上了）。怎么判断时机？看技术成熟度曲线——刚过'期望膨胀期'顶部的时候，是入场的最佳时机。2012年比特币是这样，2025年存储是这样，现在AI Agent也是这样。"},{q:"你怎么分析产业",a:"我有五条军规，十几年前写的，现在还在用——选赛道比瞎努力重要一万倍。\n\n① 选'快爆发但还没爆发'的行业。太早成先烈，太晚喝汤。甜蜜点在概念验证完成、即将大规模商业化的那一刻。\n\n② 赛道要'又快又长'。年复合增长至少20%，持续十年以上。两三年就到头的赛道不值得进。\n\n③ 能标准化复制。一个模型跑通了能快速铺开——互联网产品天然有这优势。但中餐、律所、投行就不行，核心能力绑在人身上，复制不了。\n\n④ 需求得是刚需。我不看衣食住行——我用人性七宗罪来找赛道。傲慢=朋友圈晒、懒惰=外卖、贪婪=理财课、色欲=陌陌。每个原罪都是永续的生意。\n\n⑤ 必须适合自己。前四条都过了但你不适合——就当投资人，别亲自下场。\n\n判断完赛道之后，我的执行策略是'两端下注'：找到确定性方向，在供给端和需求端同时押——不赌单一公司的执行力。机器人=特斯拉身体+英伟达大脑，无人机=AeroVironment矛+Kratos盾，太空=SpaceX龙头+Rocket Lab替代。赛道跑通了就是'过路费'。"},{q:"怎么看物理AI",a:"过去二十年AI改变的是信息怎么流动——微信替代写信、淘宝替代赶集。未来二十年AI改变的是物理世界怎么运行——工厂机器人、蜂群无人机、自动驾驶、火星AI。我把这四个叫'物理AI全图景'：\n\n🏭 具身智能（机器人）：瓶颈从硬件转到'大脑'了，VLA模型（视觉-语言-动作）是拐点。2035年全球10亿台人形机器人——黄仁勋说的，我信。\n\n🚁 无人机：AI在物理世界第一个跑通商业闭环的形态。飞行比两条腿走路简单。俄乌战场坦克被无人机打成废铁——军工逻辑被重写了。\n\n🥽 空间计算：不是VR玩具。是让AI理解三维空间的底层系统——这间房多大、东西在哪、你能不能拿到。比训练大语言模型难十倍。\n\n🚀 太空：我2025年亲自飞了卡门线。我把公司从'加密交易所'转型成'太空经济基础设施服务商'——区块链解决太空资产确权、卫星数据交易、跨星球支付。"}];
+var P=[{what:"推荐BTC(当时$500)、英伟达($0.6)、特斯拉($15)、腾讯",result:"10年后：英伟达240倍、BTC200倍、特斯拉27倍",ctx:"2016年人人买房，他叫人买科技资产，被骂骗子"},{what:"短期缺芯片、长期缺能源、永远缺存储",result:"闪迪(SNDK)后来涨了50倍",ctx:"2025年11月，所有人盯GPU，他看存储"}];
+document.getElementById('sunBall').onclick=function(){document.getElementById('sunChat').classList.toggle('open')};
+document.getElementById('sunClose').onclick=function(){document.getElementById('sunChat').classList.remove('open')};
+if(typeof TL==='undefined')var TL=[
+{t:'2026.05 下旬',h:'B.AI平台发布 — AI+加密融合',b:'孙宇晨发布B.AI平台：一个账号通ChatGPT/Claude/DeepSeek/Kimi，用稳定币付款，AI Agent可替用户签名交易。他说这是"Web4.0时代的AI助手"，YZi Labs（原Binance Labs）孵化。上线一周50万用户。'},
+{t:'2026.05 Consensus演讲',h:'"加密正在被建造成AGI的支付基础设施"',b:'在香港Consensus大会上，他回顾自己$0.20买入BTC的经历，说："AI自主交易、AI Agent、跨星球支付——这一切都需要区块链。终结者都需要区块链来完成交易。"'},
+{t:'2026 Q2-Q3',h:'波场进军量子抗性—世界首个',b:'宣布波场是全球第一个量子抗性网络。Q2测试网→Q3主网。他说量子计算是AI时代区块链最大的安全威胁，必须提前布局。'},
+{t:'2026.04.21',h:'起诉特朗普家族WLF — 震惊币圈',b:'孙宇晨在加州法院起诉World Liberty Financial，指控"刑事勒索"。他投了7500万美元是该项目最大投资人，但WLF冻结了他的代币，价值损失约2.76亿美元。WLF反诉他诽谤。'},
+{t:'2025.11.06',h:'"短期缺芯片，长期缺能源，永远缺存储"',b:'这条推文发出时，闪迪(SNDK)$35。后来涨到$1400+——50倍。所有人都在盯GPU，他注意到了被忽视的存储。他的方法论：在确定性赛道里找那个还没被炒起来的环节。'},
+{t:'2025.08.03',h:'完成亚轨道太空飞行 — 自封最年轻华人商业宇航员',b:'搭乘蓝色起源"新谢泼德号"。从此他称自己不再是"加密货币创业者"，而是"太空经济基础设施服务商"。区块链将解决太空资产确权和跨星球支付。'},
+{t:'2024-2025',h:'7500万美元投资特朗普项目 + SEC和解',b:'投资World Liberty Financial成为最大个人投资者。同时SEC诉讼达成和解。他在加密行业的生存能力再次被验证——比他体面的创始人多已消失。'},
+{t:'2016',h:'"别买房，买BTC、英伟达、特斯拉、腾讯"',b:'当时BTC$500、英伟达$0.6(拆股调整后)、特斯拉$15。十年后回报：英伟达24000%、BTC20000%、特斯拉2700%。同期北京房价涨幅仅2-3倍。所有人骂他传销骗子。'},
+];
+document.getElementById('sunTimeline').innerHTML=TL.map(function(e,i){
+return'<div style="border-left:2px solid'+(i===0?'#f7931a':'#30363d')+';padding-left:12px"><div style="font-size:10px;color:#f7931a;margin-bottom:2px">'+e.t+'</div><div style="font-size:12px;font-weight:600;color:#f0f6fc;margin-bottom:3px">'+e.h+'</div><div style="font-size:10px;color:#8b949e;line-height:1.5">'+e.b+'</div></div>';
+}).join('');
+var inboxOpen=false;
+document.getElementById('sunInboxBtn').onclick=function(){
+inboxOpen=!inboxOpen;
+document.getElementById('sunMsgs').style.display=inboxOpen?'none':'';
+document.getElementById('sunInbox').style.display=inboxOpen?'block':'none';
+document.getElementById('sunQuick').style.display=inboxOpen?'none':'';
+document.getElementById('sunChatTitle').textContent=inboxOpen?'📬 孙哥信箱':'🟠 孙哥聊投资';
+this.textContent=inboxOpen?'💬 聊天':'📬 信箱';
+};
+if(typeof qs==='undefined')var qs=['你怎么分析产业','怎么看物理AI','怎么看AI','怎么看比特币','怎么看风险','现在该做什么'];
+document.getElementById('sunQuick').innerHTML=qs.map(function(q){return'<button class="quick-btn">'+q+'</button>'}).join('');
+document.getElementById('sunQuick').onclick=function(e){if(e.target.classList.contains('quick-btn'))send(e.target.textContent)};
+document.getElementById('sunSend').onclick=function(){var v=document.getElementById('sunInput').value.trim();if(v)send(v)};
+document.getElementById('sunInput').onkeydown=function(e){if(e.key==='Enter'){var v=document.getElementById('sunInput').value.trim();if(v)send(v)}};
+function send(t){
+add(t,'user');document.getElementById('sunInput').value='';
+setTimeout(function(){add(reply(t),'sun')},500+Math.random()*600);
+}
+function add(t,r){
+var d=document.createElement('div');d.className='msg '+r;
+var n=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+d.innerHTML=t.replace(/\n/g,'<br>')+'<div class="time">'+n+'</div>';
+var m=document.getElementById('sunMsgs');m.appendChild(d);m.scrollTop=m.scrollHeight;
+}
+function reply(t){
+for(var i=0;i<K.length;i++){if(t.includes(K[i].q.replace('怎么看',''))||t.includes(K[i].q))return K[i].a}
+var kw={'比特币|BTC|加密货币|币圈|炒币|以太坊':K[1].a,'区块链|波场|TRON|TRX|USDT|稳定币|链上|公链':K[2].a,'风险|亏损|亏钱|追涨|杀跌|杠杆|借款':K[3].a,'决策|选择|犹豫|怎么选|怎么判断|纠结':K[4].a,'争议|骂|被骂|骗子|割韭菜|名声':K[5].a,'钱|财富|赚钱|有钱|收入|财务':K[6].a,'失败|活了|生存|倒闭|亏|崩盘|诉讼':K[7].a,'现在|做什么|该做什么|机会|方向|趋势|未来':K[8].a,'投资|怎么投|怎么买|买什么|策略|仓位|配置':K[9].a,'提前|时机|什么时候|早半步|太早|太晚':K[10].a,'产业|赛道|行业|选赛道|怎么选|五条军规|方法论|框架':K[11].a,'物理|机器人|无人机|太空|空间计算|具身|embodied|drone|space':K[12].a};
+for(var p in kw){if(new RegExp(p).test(t))return kw[p]}
+if(/2016|预测|当年|历史|比特币|英伟达/.test(t))return '2016年我在《财富自由革命之路》里说：别买房，买BTC、英伟达、特斯拉、腾讯。当时BTC才$500，英伟达才$0.6（拆股调整后）。所有人都骂我疯子。十年后：英伟达240倍、BTC200倍。\n\n我的方法很简单：在99%的人不懂的地方提前下注。';
+if(/存储50|50倍|闪迪|SNDK/.test(t))return '去年11月我说"永远缺存储"，当时闪迪才$35左右。后来涨到$1400多——50倍。\n\n我当时说这句话的背景是：所有人都在盯着GPU，没人注意存储。但AI每次推理都要读写——存储的需求其实比GPU更持久。';
+return '这个问题挺有意思。我看了十年级别的趋势——从比特币到AI到太空经济——核心逻辑从来没变过：在确定性方向的两端同时下注，提前半步进入，用争议获取注意力，用生存证明一切。\n\n你要我说具体怎么做？别等。现在就开始。用AI工具、买科技资产、攒认知。十年后你会感谢今天做了决定的自己。';
+}
+console.log('🟠 孙哥球已就绪');
+})();
+</script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, "Microsoft YaHei", sans-serif; background: #0d1117; color: #c9d1d9; display: flex; height: 100vh; overflow: hidden; }
+.sidebar { width: 380px; background: #161b22; padding: 16px; overflow-y: auto; border-right: 1px solid #30363d; flex-shrink: 0; }
+.main { flex: 1; display: flex; flex-direction: column; }
+.chart-area { flex: 1; min-height: 0; }
+h1 { font-size: 18px; color: #58a6ff; margin-bottom: 2px; }
+.subtitle { font-size: 11px; color: #8b949e; margin-bottom: 12px; }
+.status { font-size: 10px; padding: 3px 8px; border-radius: 8px; display: inline-block; margin-bottom: 12px; }
+.status.open { background: #1a3d2e; color: #3fb950; }
+.status.closed { background: #3d1a1a; color: #f85149; }
+.section { margin-bottom: 14px; }
+.section-title { font-size: 12px; font-weight: 600; color: #f0f6fc; margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px solid #21262d; }
+.stock-list { display: flex; flex-direction: column; gap: 4px; }
+.stock-btn { background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 8px 10px; cursor: pointer; text-align: left; color: #c9d1d9; font-size: 12px; display: flex; justify-content: space-between; align-items: center; transition: .12s; }
+.stock-btn:hover { border-color: #58a6ff; background: #1c2430; }
+.stock-btn.active { border-color: #58a6ff; background: #13233a; }
+.stock-btn .code { color: #8b949e; font-size: 10px; }
+.stock-btn .price { font-weight: 600; }
+.stock-btn .change { font-size: 11px; }
+.kline-info { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; font-size: 10px; margin-top: 8px; }
+.kline-info .item { background: #21262d; border-radius: 5px; padding: 6px 8px; }
+.kline-info .label { color: #8b949e; font-size: 10px; }
+.kline-info .value { color: #f0f6fc; font-weight: 600; font-size: 13px; margin-top: 1px; }
+.ma-ctrl { display: flex; gap: 6px; margin-top: 6px; }
+.ma-ctrl label { font-size: 10px; display: flex; align-items: center; gap: 3px; cursor: pointer; color: #8b949e; }
+.ma-ctrl input { accent-color: #58a6ff; }
+.analysis-box { background: #1a2332; border: 1px solid #58a6ff33; border-radius: 8px; padding: 12px; margin-top: 10px; }
+.analysis-box .k-type { font-size: 18px; margin-bottom: 2px; }
+.analysis-box .verdict { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.analysis-box .verdict.bull { color: #3fb950; }
+.analysis-box .verdict.bear { color: #f85149; }
+.analysis-box .verdict.neutral { color: #f0b90b; }
+.analysis-box .detail { font-size: 11px; color: #c9d1d9; line-height: 1.6; }
+.analysis-box .detail b { color: #58a6ff; }
+.analysis-box .signals { margin-top: 8px; }
+.analysis-box .signal { font-size: 10px; padding: 3px 8px; border-radius: 4px; margin: 3px 2px; display: inline-block; }
+.analysis-box .signal.positive { background: #1a3d2e; color: #3fb950; }
+.analysis-box .signal.negative { background: #3d1a1a; color: #f85149; }
+.analysis-box .signal.warn { background: #3d3520; color: #f0b90b; }
+.label-row { display: flex; gap: 8px; margin-top: 6px; font-size: 9px; color: #8b949e; }
+.label-row span { display: flex; align-items: center; gap: 3px; }
+.label-row .dot { width: 7px; height: 7px; display: inline-block; border-radius: 2px; }
+#mainChart { width: 100%; height: 50%; }
+#volChart { width: 100%; height: 17%; }
+#indChart { width: 100%; height: 18%; }
+#subChart { width: 100%; height: 15%; display: none; }
+.ind-row { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+.ind-btn { padding: 2px 8px; border-radius: 4px; border: 1px solid #30363d; background: #21262d; color: #8b949e; cursor: pointer; font-size: 9px; transition: .12s; }
+.ind-btn.active { border-color: #58a6ff; background: #13233a; color: #f0f6fc; }
+.ind-btn:hover { border-color: #58a6ff; }
+.scan-row { margin-top: 6px; font-size: 10px; }
+.scan-item { display: flex; justify-content: space-between; align-items: center; padding: 3px 6px; background: #21262d; border-radius: 4px; margin: 2px 0; }
+.scan-item .sig-text { font-size: 9px; padding: 1px 5px; border-radius: 3px; }
+.refresh-bar { display: flex; justify-content: space-between; align-items: center; padding: 4px 16px; background: #161b22; border-bottom: 1px solid #30363d; font-size: 10px; color: #8b949e; }
+.fs-btn { background: #21262d; border: 1px solid #30363d; color: #8b949e; cursor: pointer; padding: 2px 10px; border-radius: 4px; font-size: 14px; transition: .12s; }
+.fs-btn:hover { border-color: #58a6ff; color: #f0f6fc; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h1>🕯️ 实时看盘 + 白话分析</h1>
+  <p class="subtitle">鼠标悬停K线 → 左边自动解释</p>
+  <span id="marketStatus" class="status closed">⏸ 加载中...</span>
+
+  <div class="section">
+    <div class="section-title">📊 自选 (点击切换)</div>
+    <div class="stock-list" id="stockList"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📖 白话分析</div>
+    <div class="analysis-box" id="analysisBox">
+      <div class="k-type">👆 鼠标悬停图表K线</div>
+      <div class="detail">自动用大白话解释含义</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📋 数值</div>
+    <div class="kline-info" id="klineInfo">
+      <div class="item"><span class="label">开盘</span><div class="value">--</div></div>
+      <div class="item"><span class="label">收盘</span><div class="value">--</div></div>
+      <div class="item"><span class="label">最高</span><div class="value">--</div></div>
+      <div class="item"><span class="label">最低</span><div class="value">--</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">🎨 图例</div>
+    <div class="label-row">
+      <span><span class="dot" style="background:#3fb950"></span>阳线</span>
+      <span><span class="dot" style="background:#f85149"></span>阴线</span>
+      <span><span class="dot" style="background:#f0b90b;width:10px;"></span>MA5(5日)</span>
+      <span><span class="dot" style="background:#e362e3;width:10px;"></span>MA10(10日)</span>
+      <span><span class="dot" style="background:#58a6ff;width:10px;"></span>MA20(20日)</span>
+    </div>
+    <div class="ma-ctrl">
+      <label><input type="checkbox" checked onchange="toggleMA(0)">MA5(5日价)</label>
+      <label><input type="checkbox" checked onchange="toggleMA(1)">MA10(10日)</label>
+      <label><input type="checkbox" checked onchange="toggleMA(2)">MA20(20日)</label>
+    </div>
+    <div class="section-title" style="margin-top:10px">📊 技术指标</div>
+    <div class="ind-row">
+      <button class="ind-btn active" onclick="toggleInd('macd')">MACD(趋势)</button>
+      <button class="ind-btn" onclick="toggleInd('kdj')">KDJ(超买超卖)</button>
+      <button class="ind-btn" onclick="toggleInd('rsi')">RSI(强弱)</button>
+      <button class="ind-btn" onclick="toggleInd('boll')">BOLL(布林带)</button>
+    </div>
+    <div style="font-size:9px;color:#8b949e;margin-top:4px" id="indHint">💡 MACD金叉=看涨 | 死叉=看跌 | 底背离=反转</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">🔍 信号扫描</div>
+    <div class="scan-row" id="scanResult"><span style="color:#8b949e">切换股票后自动扫描...</span></div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="refresh-bar">
+    <span id="lastUpdate">🔄 正在拉数据...</span>
+    <span style="display:flex;align-items:center;gap:8px">
+      <span id="dataSource"></span>
+      <button class="fs-btn" onclick="toggleFullscreen()" title="全屏">⛶</button>
+    </span>
+  </div>
+  <div id="mainChart" class="chart-area"></div>
+  <div id="volChart" class="chart-area"></div>
+  <div id="indChart" class="chart-area"></div>
+  <div id="subChart" class="chart-area"></div>
+</div>
+
+<script>
+// ====================== CONFIG ======================
+const WATCHLIST = [
+  // === 指数/ETF ===
+  { code: 'sh000001', qt: 'sh000001', name: '上证指数', type: 'index', industry: '大盘基准' },
+  { code: 'sh588000', qt: 'sh588000', name: '科创50ETF', type: 'fund', industry: '科创板50强' },
+  { code: 'sh512760', qt: 'sh512760', name: '芯片ETF', type: 'fund', industry: '半导体指数' },
+  { code: 'sh510300', qt: 'sh510300', name: '沪深300ETF', type: 'fund', industry: '蓝筹基准' },
+  // === AI芯片设计 ===
+  { code: 'sh688256', qt: 'sh688256', name: '寒武纪', type: 'stock', industry: '🟡 中游 · AI芯片设计' },
+  { code: 'sh688041', qt: 'sh688041', name: '海光信息', type: 'stock', industry: '🟡 中游 · CPU/GPU设计' },
+  // === 晶圆代工 ===
+  { code: 'sh688981', qt: 'sh688981', name: '中芯国际', type: 'stock', industry: '🟡 中游 · 晶圆代工' },
+  // === 光模块 ===
+  { code: 'sz300308', qt: 'sz300308', name: '中际旭创', type: 'stock', industry: '🟡 中游 · 光模块龙头' },
+  // === AI服务器 ===
+  { code: 'sh601138', qt: 'sh601138', name: '工业富联', type: 'stock', industry: '🟢 下游 · AI服务器代工' },
+  // === 先进封装 ===
+  { code: 'sh600584', qt: 'sh600584', name: '长电科技', type: 'stock', industry: '🟡 中游 · 先进封装' },
+  // === 存储芯片 ===
+  { code: 'sh603986', qt: 'sh603986', name: '兆易创新', type: 'stock', industry: '🔴 上游 · 存储芯片' },
+  // === PCB/CCL ===
+  { code: 'sh600183', qt: 'sh600183', name: '生益科技', type: 'stock', industry: '🔴 上游 · PCB覆铜板' },
+  // === 液冷散热 ===
+  { code: 'sz002837', qt: 'sz002837', name: '英维克', type: 'stock', industry: '🔴 上游 · 液冷散热' },
+];
+
+let currentStock = WATCHLIST[0];
+let allData = [];
+let maVisibility = [true, true, true];
+let mainChart, volChart;
+
+// ====================== DATA FETCH ======================
+async function fetchFromTencent(code, count) {
+  const url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${code},day,,,${count},qfq`;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const json = await resp.json();
+    if (json.code !== 0 || !json.data || !json.data[code]) throw new Error('no data');
+
+    const klines = json.data[code].qfqday || json.data[code].day || [];
+    if (!klines.length) throw new Error('empty');
+
+    return klines.map(k => ({
+      date: k[0],
+      open: parseFloat(k[1]), close: parseFloat(k[2]),
+      high: parseFloat(k[3]), low: parseFloat(k[4]),
+      volume: parseFloat(k[5])
+    })).filter(d => d.open > 0 && d.date);
+  } catch (e) {
+    console.warn('Tencent API failed for', code, e.message);
+    return null;
+  }
+}
+
+async function fetchQuotesFromSina(codes) {
+  const list = codes.join(',');
+  const url = `https://hq.sinajs.cn/list=${list}`;
+  try {
+    const resp = await fetch(url, { headers: { 'Referer': 'https://finance.sina.com.cn' } });
+    const text = await resp.text();
+    const results = [];
+    const parts = text.split('\n').filter(l => l.trim());
+    for (const line of parts) {
+      const match = line.match(/var hq_str_(\w+)="(.+)"/);
+      if (!match) continue;
+      const code = match[1];
+      const fields = match[2].split(',');
+      if (fields.length < 5) continue;
+      const name = fields[0];
+      const open = parseFloat(fields[1]);
+      const close = parseFloat(fields[2]) || parseFloat(fields[3]);
+      const price = close || 0;
+      const prevClose = parseFloat(fields[2]) || 0;
+      const changePct = prevClose ? ((price - prevClose) / prevClose * 100).toFixed(2) : 0;
+      results.push({ code, name, price, changePercent: changePct });
+    }
+    return results;
+  } catch (e) {
+    console.warn('Sina quotes failed:', e.message);
+    return [];
+  }
+}
+
+// ====================== SAMPLE DATA FALLBACK ======================
+function generateSampleData() {
+  const data = [];
+  const now = new Date();
+  let close = 25 + Math.random() * 15;
+  for (let i = 0; i < 90; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - (90 - i));
+    let day = d.getDay();
+    while (day === 0 || day === 6) { d.setDate(d.getDate() - 1); day = d.getDay(); }
+    const date = d.toISOString().slice(0, 10);
+    const change = (Math.random() - 0.48) * close * 0.04;
+    const open = close;
+    close = +(close + change).toFixed(2);
+    if (close <= 0) close = open + Math.abs(change);
+    const high = +Math.max(open, close, open + Math.random() * close * 0.03).toFixed(2);
+    const low = +Math.min(open, close, open - Math.random() * close * 0.03).toFixed(2);
+    data.push({ date, open, close, high, low, volume: Math.floor(100000 + Math.random() * 800000) });
+  }
+  return data;
+}
+
+// ====================== COMPUTE MA ======================
+function computeMA(data, period) {
+  const r = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i >= period - 1) {
+      let sum = 0;
+      for (let j = i - period + 1; j <= i; j++) sum += data[j].close;
+      r.push([i, +(sum / period).toFixed(2)]);
+    }
+  }
+  return r;
+}
+
+// ====================== TECHNICAL INDICATORS ======================
+function computeEMA(data, period) {
+  const r = [data[0].close];
+  const k = 2 / (period + 1);
+  for (let i = 1; i < data.length; i++) r.push(data[i].close * k + r[i-1] * (1 - k));
+  return r;
+}
+
+function computeBOLL(data, period = 20, mult = 2) {
+  const mid = [], upper = [], lower = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i >= period - 1) {
+      const slice = data.slice(i - period + 1, i + 1);
+      const avg = slice.reduce((s, d) => s + d.close, 0) / period;
+      const variance = slice.reduce((s, d) => s + (d.close - avg) ** 2, 0) / period;
+      const std = Math.sqrt(variance);
+      mid.push([i, +avg.toFixed(2)]);
+      upper.push([i, +(avg + mult * std).toFixed(2)]);
+      lower.push([i, +(avg - mult * std).toFixed(2)]);
+    }
+  }
+  return { mid, upper, lower };
+}
+
+function computeMACD(data, fast = 12, slow = 26, signal = 9) {
+  const emaFast = computeEMA(data, fast);
+  const emaSlow = computeEMA(data, slow);
+  const dif = [], dea = [], histogram = [];
+  let prevDea = emaFast[slow - 1] - emaSlow[slow - 1];
+  for (let i = 0; i < data.length; i++) {
+    const d = emaFast[i] - emaSlow[i];
+    dif.push([i, +d.toFixed(4)]);
+    if (i >= slow - 1) {
+      prevDea = d * (2 / (signal + 1)) + prevDea * (1 - 2 / (signal + 1));
+      dea.push([i, +prevDea.toFixed(4)]);
+      histogram.push([i, +(d - prevDea).toFixed(4)]);
+    }
+  }
+  return { dif, dea, histogram };
+}
+
+function computeKDJ(data, period = 9, kPeriod = 3, dPeriod = 3) {
+  const k = [], d = [], j = [];
+  let prevK = 50, prevD = 50;
+  for (let i = 0; i < data.length; i++) {
+    if (i >= period - 1) {
+      const slice = data.slice(i - period + 1, i + 1);
+      const low = Math.min(...slice.map(d => d.low));
+      const high = Math.max(...slice.map(d => d.high));
+      const rsv = high === low ? 50 : ((data[i].close - low) / (high - low)) * 100;
+      prevK = (rsv + (kPeriod - 1) * prevK) / kPeriod;
+      prevD = (prevK + (dPeriod - 1) * prevD) / dPeriod;
+      const jVal = 3 * prevK - 2 * prevD;
+      k.push([i, +prevK.toFixed(2)]);
+      d.push([i, +prevD.toFixed(2)]);
+      j.push([i, +jVal.toFixed(2)]);
+    }
+  }
+  return { k, d, j };
+}
+
+function computeRSI(data, period = 14) {
+  const rsi = [];
+  let avgGain = 0, avgLoss = 0;
+  for (let i = 1; i < data.length; i++) {
+    const chg = data[i].close - data[i-1].close;
+    if (i <= period) {
+      if (chg > 0) avgGain += chg; else avgLoss -= chg;
+      if (i === period) { avgGain /= period; avgLoss /= period; }
+    } else {
+      avgGain = (avgGain * (period - 1) + (chg > 0 ? chg : 0)) / period;
+      avgLoss = (avgLoss * (period - 1) + (chg < 0 ? -chg : 0)) / period;
+    }
+    if (i >= period) {
+      const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+      rsi.push([i, +(100 - 100 / (1 + rs)).toFixed(2)]);
+    }
+  }
+  return rsi;
+}
+
+let currentInd = 'macd';
+
+function toggleInd(name) {
+  currentInd = name;
+  document.querySelectorAll('.ind-btn').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase().includes(name)));
+  const hints = { macd:'💡 MACD金叉(DIF上穿DEA)=看涨 | 死叉=看跌 | 底背离=反转信号', kdj:'💡 KDJ<20超卖=可能反弹 | KDJ>80超买=可能回调 | K上穿D=金叉买入', rsi:'💡 RSI<30超卖=低估 | RSI>70超买=高估 | RSI=50分界线', boll:'💡 价格触及下轨=可能反弹 | 触及上轨=可能回落 | 收窄=变盘前兆' };
+  document.getElementById('indHint').textContent = hints[name] || '';
+  if (allData.length) renderCharts(allData);
+}
+
+// ====================== SIGNAL SCANNER ======================
+function scanSignals(data, code) {
+  if (!data || data.length < 26) return [];
+  const signals = [];
+  const last = data.length - 1;
+  const macd = computeMACD(data);
+  const kdj = computeKDJ(data);
+  const rsi = computeRSI(data);
+  const boll = computeBOLL(data);
+
+  // MACD gold cross recently
+  if (macd.dif.length >= 3 && macd.dea.length >= 3) {
+    const dL = macd.dif[macd.dif.length-1][1], deL = macd.dea[macd.dea.length-1][1];
+    const dP = macd.dif[macd.dif.length-2][1], deP = macd.dea[macd.dea.length-2][1];
+    if (dL > deL && dP <= deP) signals.push({ type:'positive', text:'MACD金叉', detail:'DIF上穿DEA，短线看涨信号' });
+    if (dL < deL && dP >= deP) signals.push({ type:'negative', text:'MACD死叉', detail:'DIF下穿DEA，短线看跌信号' });
+  }
+
+  // KDJ signals
+  if (kdj.k.length >= 2 && kdj.j.length >= 1) {
+    const jLast = kdj.j[kdj.j.length-1][1], kL = kdj.k[kdj.k.length-1][1], dL = kdj.d[kdj.d.length-1][1];
+    const kP = kdj.k[kdj.k.length-2][1], dP = kdj.d[kdj.d.length-2][1];
+    if (jLast < 0) signals.push({ type:'positive', text:'KDJ超卖(J<0)', detail:'极度超卖，反弹概率很高' });
+    else if (jLast < 20) signals.push({ type:'positive', text:'KDJ超卖', detail:'进入超卖区，可能触底反弹' });
+    if (jLast > 100) signals.push({ type:'negative', text:'KDJ超买(J>100)', detail:'极度超买，回调风险高' });
+    else if (jLast > 80) signals.push({ type:'negative', text:'KDJ超买', detail:'进入超买区，注意回调' });
+    if (kL > dL && kP <= dP) signals.push({ type:'positive', text:'KDJ金叉', detail:'K线上穿D线，短期买点' });
+  }
+
+  // RSI
+  if (rsi.length >= 1) {
+    if (rsi[rsi.length-1][1] < 30) signals.push({ type:'positive', text:'RSI超卖', detail:`RSI=${rsi[rsi.length-1][1].toFixed(1)}，低于30，可能反弹` });
+    if (rsi[rsi.length-1][1] > 70) signals.push({ type:'negative', text:'RSI超买', detail:`RSI=${rsi[rsi.length-1][1].toFixed(1)}，高于70，可能回调` });
+  }
+
+  // BOLL
+  if (boll.lower.length >= 1) {
+    const c = data[last].close, bl = boll.lower[boll.lower.length-1][1], bu = boll.upper[boll.upper.length-1][1], bm = boll.mid[boll.mid.length-1][1];
+    if (c <= bl * 1.02) signals.push({ type:'positive', text:'触及布林下轨', detail:'价格接近下轨，有支撑，可能反弹' });
+    if (c >= bu * 0.98) signals.push({ type:'negative', text:'触及布林上轨', detail:'价格接近上轨，有压力，可能回落' });
+    const bandwidth = (bu - bl) / bm;
+    if (bandwidth < 0.1) signals.push({ type:'warn', text:'布林收窄', detail:'带宽收窄，即将变盘' });
+  }
+
+  // MA crosses
+  if (data.length >= 21) {
+    const ma5 = data.slice(-5).reduce((s,d)=>s+d.close,0)/5;
+    const ma20 = data.slice(-20).reduce((s,d)=>s+d.close,0)/20;
+    const prevMa5 = data.slice(-6,-1).reduce((s,d)=>s+d.close,0)/5;
+    const prevMa20 = data.slice(-21,-1).reduce((s,d)=>s+d.close,0)/20;
+    if (ma5 > ma20 && prevMa5 <= prevMa20) signals.push({ type:'positive', text:'MA金叉', detail:'MA5上穿MA20，中期看涨' });
+    if (ma5 < ma20 && prevMa5 >= prevMa20) signals.push({ type:'negative', text:'MA死叉', detail:'MA5下穿MA20，中期看跌' });
+  }
+
+  // Volume anomaly
+  if (data.length >= 5) {
+    const avg20 = data.slice(-20).reduce((s,d)=>s+d.volume,0)/20;
+    const today = data[last].volume;
+    if (today > avg20 * 3) signals.push({ type:'warn', text:'天量成交', detail:'成交量是均量3倍以上，关注异动' });
+  }
+
+  return signals;
+}
+
+// ====================== INDUSTRY CHAIN CONTEXT ======================
+const CHAIN_MAP = {
+  'sh688256': { name:'寒武纪', tier:'🟡 中游 · AI芯片设计', role:'国产ASIC芯片龙头，思元590对标A100的70-80%', up:'中芯国际(代工)、长电科技(封装)、HBM(海力士供内存)', down:'AI服务器(工业富联)、AI应用(豆包/DeepSeek等)', signal:'国家认证+DeepSeek适配', risk:'客户集中度88%，前五大客户占比较高' },
+  'sh688041': { name:'海光信息', tier:'🟡 中游 · CPU/DCU双龙头', role:'国产x86 CPU+DCU-GPU，深算系列兼容CUDA生态', up:'中芯国际(代工)，先进封装需求', down:'服务器(浪潮/曙光)、数据中心', signal:'I级安全认证+在手订单480亿', risk:'客户集中度90%+' },
+  'sh688981': { name:'中芯国际', tier:'🟡 中游 · 晶圆代工', role:'国内最大晶圆厂，14nm量产/7nm推进，全球排第三', up:'硅片(沪硅)、光刻胶(南大)、设备(北方华创)', down:'所有国产芯片设计公司(寒武纪/海光/华为)', signal:'韬定律直接利好，市值破1.25万亿', risk:'EUV光刻机被卡，先进制程进展受限' },
+  'sh600584': { name:'长电科技', tier:'🟡 中游 · 先进封装', role:'国内封测龙头，Chiplet/3D封装全布局', up:'封装设备、基板材料', down:'所有AI芯片厂(GPU/HBM都需要先进封装)', signal:'韬定律核心受益+台积电CoWoS溢出', risk:'封装技术迭代快，需持续投入' },
+  'sz300308': { name:'中际旭创', tier:'🟡 中游 · 光模块', role:'全球光模块龙头，800G/1.6T批量出货，Q1净利+262%', up:'光芯片(EML/CW激光器紧缺)、法拉第旋光片', down:'英伟达/谷歌/微软数据中心光互联', signal:'1.6T元年+英伟达锁产能+股价新高', risk:'CPO技术路线可能颠覆传统可插拔' },
+  'sh601138': { name:'工业富联', tier:'🟢 下游 · AI服务器', role:'全球AI服务器代工霸主(>40%份额)，英伟达核心合作伙伴', up:'GPU(英伟达)、HBM、PCB、液冷', down:'微软/亚马逊/谷歌/字节等云厂商', signal:'英伟达Q1收入+85%，GB300出货', risk:'代工利润率低，受上游GPU供应制约' },
+  'sh603986': { name:'兆易创新', tier:'🔴 上游 · 存储芯片', role:'NOR Flash全球前三，参股长鑫存储，Q1净利+523%', up:'硅片、化学品', down:'所有电子产品+AI服务器(存模型参数)', signal:'存储超级涨价周期延续到2027年', risk:'存储价格周期性波动剧烈' },
+  'sh600183': { name:'生益科技', tier:'🔴 上游 · PCB/覆铜板', role:'CCL龙头，AI服务器PCB材料核心供应商', up:'铜箔、玻纤布、树脂', down:'PCB厂→AI服务器(工业富联等)', signal:'Rubin单柜PCB价值量涨2倍+高端紧缺', risk:'原材料铜价波动影响利润' },
+  'sz002837': { name:'英维克', tier:'🔴 上游 · 液冷散热', role:'冷板液冷市占率>50%，获英伟达MGX认证', up:'水泵、冷板、CDU组件', down:'AI数据中心(字节/阿里/腾讯)', signal:'液冷从选配变标配+GB300全面液冷', risk:'液冷渗透率提升速度不确定' },
+  'sh000001': { name:'上证指数', tier:'📊 大盘', role:'反映A股整体走势', up:'-', down:'-', signal:'-', risk:'-' },
+  'sh588000': { name:'科创50ETF', tier:'📊 指数基金', role:'跟踪科创板50强，含寒武纪/海光/中芯', up:'-', down:'-', signal:'-', risk:'-' },
+  'sh512760': { name:'芯片ETF', tier:'📊 行业基金', role:'一篮子半导体股票', up:'-', down:'-', signal:'-', risk:'-' },
+  'sh510300': { name:'沪深300ETF', tier:'📊 大盘基金', role:'跟踪沪深300蓝筹', up:'-', down:'-', signal:'-', risk:'-' },
+};
+
+function getChainContext(code) {
+  return CHAIN_MAP[code] || null;
+}
+function analyzeKLine(data, idx) {
+  if (idx < 0 || idx >= data.length) return null;
+  const d = data[idx];
+  const up = d.close >= d.open;
+  const body = Math.abs(d.close - d.open);
+  const upperWick = d.high - Math.max(d.open, d.close);
+  const lowerWick = Math.min(d.open, d.close) - d.low;
+  const totalRange = d.high - d.low || 0.01;
+  const bodyPct = body / totalRange;
+  const upperPct = upperWick / totalRange;
+  const lowerPct = lowerWick / totalRange;
+
+  let avgVol = 0, cnt = 0;
+  for (let j = Math.max(0, idx - 20); j <= Math.min(data.length-1, idx + 5); j++) {
+    if (j !== idx) { avgVol += data[j].volume; cnt++; }
+  }
+  avgVol /= cnt || 1;
+  const volVsAvg = d.volume / avgVol;
+
+  const getMA = (p) => { if (idx < p-1) return null; let s=0; for(let j=idx-p+1;j<=idx;j++) s+=data[j].close; return s/p; };
+  const ma5 = getMA(5), ma10 = getMA(10), ma20 = getMA(20);
+
+  let emoji = '📊', name = '', explain = '';
+  if (bodyPct > 0.85 && upperPct < 0.1 && lowerPct < 0.1) {
+    if (up) { emoji = '🟢'; name = '大阳线'; explain = '全天几乎不停歇地上涨，买方完全碾压卖方。'; }
+    else { emoji = '🔴'; name = '大阴线'; explain = '全天一路被砸，卖方疯狂出货，大家抢着跑。'; }
+  } else if (lowerPct > 0.6 && bodyPct < 0.3 && lowerWick > body * 2.5) {
+    emoji = '🔨'; name = '锤子线';
+    explain = '白天曾经大跌但被买盘拽回来了，说明跌到这就有人护盘。可能到底了，接下来大概率涨。';
+  } else if (upperPct > 0.6 && bodyPct < 0.3 && upperWick > body * 2.5) {
+    emoji = '🔝'; name = '倒锤子/流星线';
+    explain = '盘中冲很高但被砸回来，上方的抛压很重。可能是阶段性顶部，小心追高。';
+  } else if (bodyPct < 0.15) {
+    emoji = '➕'; name = '十字星';
+    explain = '开盘收盘几乎一样，多空打了一天平手。马上要变盘——涨了就快跌，跌了就快涨。';
+  } else if (idx > 0) {
+    const prev = data[idx-1], prevUp = prev.close >= prev.open;
+    if (up !== prevUp && body > Math.abs(prev.close-prev.open)*2) {
+      if (prevUp && d.open > prev.close && d.close < prev.open) {
+        emoji = '🔄'; name = '看跌吞没'; explain = '前一天小阳线，今天大阴线全吞了。卖方突然发力，趋势可能从涨转跌。短线该跑了。';
+      } else if (!prevUp && d.open < prev.close && d.close > prev.open) {
+        emoji = '🔄'; name = '看涨吞没'; explain = '前一天小阴线，今天大阳线全吞了。买方强力反攻，趋势可能从跌转涨。可以关注。';
+      }
+    }
+  }
+  if (!name) { emoji = up ? '🟢' : '🔴'; name = up ? '普通阳线' : '普通阴线'; explain = up ? '今天涨了，多方占优。' : '今天跌了，空方占优。'; }
+
+  // MA analysis
+  let maSignal = '', maType = '';
+  if (ma5 && ma10 && ma20) {
+    if (ma5 > ma10 && ma10 > ma20) { maSignal = '均线多头排列（MA5>MA10>MA20），上升趋势明确。'; maType = 'positive'; }
+    else if (ma5 < ma10 && ma10 < ma20) { maSignal = '均线空头排列，下跌趋势中。短线不宜追。'; maType = 'negative'; }
+    else { maSignal = '均线交叉纠缠，横盘震荡中，方向不明确。'; maType = 'warn'; }
+  }
+
+  // Volume analysis
+  let volSignal = '', volType = 'warn';
+  if (volVsAvg > 2) { volSignal = `成交量是均量的${volVsAvg.toFixed(1)}倍，大幅放量。`; volType = up?'positive':'negative'; }
+  else if (volVsAvg > 1.3) { volSignal = `成交量是均量的${volVsAvg.toFixed(1)}倍，温和放量。`; volType = up?'positive':'warn'; }
+  else if (volVsAvg < 0.5) { volSignal = `成交量只有均量的${(volVsAvg*100).toFixed(0)}%，极度缩量。`; volType = 'warn'; }
+  else { volSignal = '成交量正常。'; }
+  if (up && volVsAvg > 1.5) volSignal += ' 涨+放量=真涨，有真金白银在买。';
+  if (up && volVsAvg < 0.6) volSignal += ' 涨+缩量=虚涨，可能是诱多。';
+  if (!up && volVsAvg > 1.5) volSignal += ' 跌+放量=恐慌出货。';
+  if (!up && volVsAvg < 0.6) volSignal += ' 跌+缩量=没人砸了，可能跌不动。';
+
+  // Verdict
+  let bull = 0, bear = 0;
+  if (name.includes('大阳')||name.includes('锤子')||name.includes('看涨')) bull+=2;
+  if (name.includes('大阴')||name.includes('流星')||name.includes('看跌')) bear+=2;
+  if (name.includes('十字星')){bull+=0.5;bear+=0.5;}
+  if (maType==='positive') bull+=1.5; else if (maType==='negative') bear+=1.5;
+  if (volType==='positive') bull+=1; else if (volType==='negative') bear+=1;
+  if (up) bull+=0.5; else bear+=0.5;
+
+  let verdictType, verdictText;
+  if (bull > bear+1.5) { verdictType='bull'; verdictText='偏多 ↑ 看涨信号偏强'; }
+  else if (bear > bull+1.5) { verdictType='bear'; verdictText='偏空 ↓ 看跌信号偏强'; }
+  else if (bull>bear) { verdictType='bull'; verdictText='略偏多 ↗ 信号弱，观望'; }
+  else if (bear>bull) { verdictType='bear'; verdictText='略偏空 ↘ 信号弱，观望'; }
+  else { verdictType='neutral'; verdictText='多空平衡 ↔ 等信号'; }
+
+  return { emoji, name, explain, maSignal, maType, volSignal, volType, verdictType, verdictText, d, up, volVsAvg };
+}
+
+function renderAnalysisBox(a, data, idx) {
+  if (!a) return;
+  const box = document.getElementById('analysisBox'), d = a.d;
+  let sig = '';
+  if (a.maSignal) { const c = a.maType==='positive'?'positive':(a.maType==='negative'?'negative':'warn'); sig += `<span class="signal ${c}">📈 ${a.maSignal}</span>`; }
+  if (a.volSignal) { const c = a.volType==='positive'?'positive':(a.volType==='negative'?'negative':'warn'); sig += `<span class="signal ${c}">📊 ${a.volSignal}</span>`; }
+
+  let trend = '';
+  if (idx >= 4) {
+    let upDays = 0; for (let j=idx-4;j<=idx;j++) if (data[j].close>=data[j].open) upDays++;
+    trend = `📌 近5天 ${upDays}涨${5-upDays}跌`;
+    const chg = ((d.close-data[Math.max(0,idx-4)].close)/data[Math.max(0,idx-4)].close*100).toFixed(2);
+    const cc = parseFloat(chg)>=0?'#3fb950':'#f85149';
+    trend += ` · 5日涨跌 <b style="color:${cc}">${parseFloat(chg)>=0?'+':''}${chg}%</b>`;
+  }
+
+  // Industry chain context
+  const chain = getChainContext(currentStock.code);
+  let chainHTML = '';
+  if (chain && chain.tier.indexOf('📊') === -1) {
+    chainHTML = `
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #30363d">
+      <div style="font-size:10px;color:#8b949e;margin-bottom:4px">⛓️ 产业链位置</div>
+      <div style="font-size:11px;color:#f0f6fc;margin-bottom:3px"><b>${chain.tier}</b></div>
+      <div style="font-size:10px;color:#c9d1d9;line-height:1.5;margin-bottom:4px">${chain.role}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:9px">
+        <div style="background:#1a2332;border-radius:4px;padding:4px 6px"><span style="color:#8b949e">⬆ 上游:</span> <span style="color:#f0b90b">${chain.up}</span></div>
+        <div style="background:#1a2332;border-radius:4px;padding:4px 6px"><span style="color:#8b949e">⬇ 下游:</span> <span style="color:#3fb950">${chain.down}</span></div>
+      </div>
+      <div style="margin-top:4px;display:flex;gap:6px;font-size:9px">
+        <span class="signal positive" style="font-size:9px">📡 利好: ${chain.signal}</span>
+        <span class="signal warn" style="font-size:9px">⚠️ 风险: ${chain.risk}</span>
+      </div>
+    </div>`;
+  }
+
+  box.innerHTML = `<div class="k-type">${a.emoji} ${a.name}</div>
+    <div class="verdict ${a.verdictType}">${a.verdictText}</div>
+    <div class="detail">📅 <b>${d.date}</b>${trend?`<br>${trend}`:''}<br>${a.explain}</div>
+    <div class="signals">${sig}</div>
+    ${chainHTML}`;
+}
+
+// ====================== RENDER CHARTS ======================
+function renderCharts(data) {
+  const dates = data.map(d => d.date.slice(5));
+  const isUp = d => d.close >= d.open;
+
+  const kdata = data.map(d => ({
+    value: [d.open, d.close, d.low, d.high],
+    itemStyle: { color: isUp(d)?'#3fb950':'#f85149', color0:'#f85149', borderColor: isUp(d)?'#3fb950':'#f85149', borderColor0:'#f85149' }
+  }));
+
+  const vdata = data.map(d => ({ value: d.volume, itemStyle: { color: isUp(d)?'#3fb95060':'#f8514960' } }));
+
+  const mainOpt = {
+    backgroundColor:'transparent', animation:false,
+    grid:{left:55,right:15,top:10,bottom:5},
+    xAxis:{type:'category',data:dates,axisLine:{lineStyle:{color:'#30363d'}},axisTick:{show:false},axisLabel:{color:'#8b949e',fontSize:10,interval:Math.floor(data.length/8)},splitLine:{show:false}},
+    yAxis:{type:'value',scale:true,axisLine:{show:false},axisTick:{show:false},axisLabel:{color:'#8b949e',fontSize:10},splitLine:{lineStyle:{color:'#21262d'}}},
+    tooltip:{trigger:'axis',axisPointer:{type:'cross'},backgroundColor:'#161b22',borderColor:'#30363d',textStyle:{color:'#f0f6fc',fontSize:12},
+      formatter:function(p){
+        if(!p||!p[0])return'';const i=p[0].dataIndex,d=data[i];if(!d)return'';
+        const up=d.close>=d.open,pct=((d.close-d.open)/d.open*100).toFixed(2);
+        const a=analyzeKLine(data,i);
+        return `<b>${d.date}</b> ${a?a.emoji+' '+a.name:''}<br/>开 <b>${d.open.toFixed(2)}</b> 收 <b style="color:${up?'#3fb950':'#f85149'}">${d.close.toFixed(2)}</b> (${pct}%)<br/>高 ${d.high.toFixed(2)} 低 ${d.low.toFixed(2)} 量 ${(d.volume/10000).toFixed(1)}万手`;
+    }},
+    series:[{name:'K',type:'candlestick',data:kdata,itemStyle:{color:'#3fb950',color0:'#f85149',borderColor:'#3fb950',borderColor0:'#f85149'}}]
+  };
+
+  const mc = ['#f0b90b','#e362e3','#58a6ff'];
+  const mn = ['MA5(5日均价)','MA10(10日均价)','MA20(20日均价)'];
+  for (let m=0;m<3;m++) {
+    if (maVisibility[m]) mainOpt.series.push({name:mn[m],type:'line',data:computeMA(data,[5,10,20][m]),smooth:true,symbol:'none',lineStyle:{color:mc[m],width:1.5}});
+  }
+
+  const volOpt = {
+    backgroundColor:'transparent',animation:false,
+    grid:{left:55,right:15,top:5,bottom:20},
+    xAxis:{type:'category',data:dates,axisLine:{lineStyle:{color:'#30363d'}},axisTick:{show:false},axisLabel:{color:'#8b949e',fontSize:9,interval:Math.floor(data.length/8)},splitLine:{show:false}},
+    yAxis:{type:'value',axisLine:{show:false},axisTick:{show:false},axisLabel:{color:'#8b949e',fontSize:9,formatter:v=>(v/10000).toFixed(0)+'万'},splitLine:{lineStyle:{color:'#21262d'}}},
+    series:[{name:'量',type:'bar',data:vdata,barWidth:'60%'}]
+  };
+
+  // BOLL on main chart if active
+  if (currentInd === 'boll') {
+    const boll = computeBOLL(data);
+    ['mid','upper','lower'].forEach((k,idx) => {
+      const names = ['中轨(20日均线)','上轨(压力位)','下轨(支撑位)'];
+      mainOpt.series.push({ name:names[idx], type:'line', data:boll[k], smooth:true, symbol:'none', lineStyle:{ color:k==='mid'?'#f0b90b':k==='upper'?'#3fb950':'#f85149', width:1, type:'dashed' } });
+    });
+  }
+
+  mainChart.setOption(mainOpt,true);
+  volChart.setOption(volOpt,true);
+
+  // Indicator chart
+  const indChart = echarts.getInstanceByDom(document.getElementById('indChart'));
+  const subChart = echarts.getInstanceByDom(document.getElementById('subChart'));
+  const indOpt = { backgroundColor:'transparent',animation:false, grid:{left:55,right:15,top:5,bottom:5},
+    xAxis:{type:'category',data:dates,axisLine:{lineStyle:{color:'#30363d'}},axisTick:{show:false},axisLabel:{show:false},splitLine:{show:false}},
+    yAxis:{type:'value',axisLine:{show:false},axisTick:{show:false},axisLabel:{color:'#8b949e',fontSize:8},splitLine:{lineStyle:{color:'#21262d'}}},
+    tooltip:{trigger:'axis',backgroundColor:'#161b22',borderColor:'#30363d',textStyle:{color:'#f0f6fc',fontSize:10}},
+    series:[] };
+  subChart.setOption({...indOpt,series:[]},true);
+  subChart.getDom().style.display = 'none';
+
+  if (currentInd === 'macd') {
+    const m = computeMACD(data);
+    indOpt.series = [
+      { name:'DIF(快线)',type:'line',data:m.dif,smooth:true,symbol:'none',lineStyle:{color:'#f0b90b',width:1.5} },
+      { name:'DEA(慢线)',type:'line',data:m.dea,smooth:true,symbol:'none',lineStyle:{color:'#e362e3',width:1.5} },
+      { name:'柱(涨跌力度)',type:'bar',data:m.histogram.map(h=>[h[0],h[1]]),barWidth:'60%',itemStyle:{color:params=>params.data[1]>=0?'#3fb950':'#f85149'} }
+    ];
+    indChart.getDom().style.display = '';
+    document.getElementById('subChart').style.display = 'none';
+  } else if (currentInd === 'kdj') {
+    const kdj = computeKDJ(data);
+    indOpt.series = [
+      { name:'K(快线)',type:'line',data:kdj.k,smooth:true,symbol:'none',lineStyle:{color:'#f0b90b',width:1.5} },
+      { name:'D(慢线)',type:'line',data:kdj.d,smooth:true,symbol:'none',lineStyle:{color:'#e362e3',width:1.5} },
+      { name:'J(敏感线)',type:'line',data:kdj.j,smooth:true,symbol:'none',lineStyle:{color:'#58a6ff',width:1.5} }
+    ];
+    indChart.getDom().style.display = '';
+    document.getElementById('subChart').style.display = 'none';
+  } else if (currentInd === 'rsi') {
+    const r = computeRSI(data, 6), r2 = computeRSI(data, 12), r3 = computeRSI(data, 24);
+    indOpt.series = [
+      { name:'RSI6(短期强弱)',type:'line',data:r,smooth:true,symbol:'none',lineStyle:{color:'#f0b90b',width:1.5} },
+      { name:'RSI12(中期强弱)',type:'line',data:r2,smooth:true,symbol:'none',lineStyle:{color:'#e362e3',width:1.5} },
+      { name:'RSI24(长期强弱)',type:'line',data:r3,smooth:true,symbol:'none',lineStyle:{color:'#58a6ff',width:1.5} }
+    ];
+    // Add 30/70 reference lines
+    indOpt.series.push({ name:'超卖线(30)',type:'line',data:[[0,30],[data.length-1,30]],symbol:'none',lineStyle:{color:'#3fb950',width:0.5,type:'dashed'} });
+    indOpt.series.push({ name:'超买线(70)',type:'line',data:[[0,70],[data.length-1,70]],symbol:'none',lineStyle:{color:'#f85149',width:0.5,type:'dashed'} });
+    indChart.getDom().style.display = '';
+    document.getElementById('subChart').style.display = 'none';
+  } else {
+    indChart.getDom().style.display = 'none';
+    document.getElementById('subChart').style.display = 'none';
+  }
+
+  indChart.setOption(indOpt,true);
+
+  // Signal scanner
+  const sigs = scanSignals(data, currentStock.code);
+  const scanEl = document.getElementById('scanResult');
+  if (sigs.length === 0) scanEl.innerHTML = '<span style="color:#8b949e">🔍 当前无特殊信号</span>';
+  else {
+    scanEl.innerHTML = sigs.map(s => {
+      const c = s.type === 'positive' ? '#3fb950' : (s.type === 'negative' ? '#f85149' : '#f0b90b');
+      const e = s.type === 'positive' ? '📈' : (s.type === 'negative' ? '📉' : '⚠️');
+      return `<div class="scan-item"><span>${e} <b style="color:${c}">${s.text}</b></span><span class="sig-text" style="background:${c}22;color:${c}">${s.detail}</span></div>`;
+    }).join('');
+  }
+
+  mainChart.off('mousemove');
+  mainChart.on('mousemove',function(p){
+    if(p.dataIndex!==undefined&&data[p.dataIndex]){
+      updateInfo(data[p.dataIndex]);
+      renderAnalysisBox(analyzeKLine(data,p.dataIndex),data,p.dataIndex);
+    }
+  });
+
+  const last = analyzeKLine(data,data.length-1);
+  updateInfo(data[data.length-1]);
+  if(last) renderAnalysisBox(last,data,data.length-1);
+}
+
+function updateInfo(d) {
+  const up=d.close>=d.open,pct=((d.close-d.open)/d.open*100).toFixed(2),badge=up?`<span style="color:#3fb950;font-size:11px">+${pct}%</span>`:`<span style="color:#f85149;font-size:11px">${pct}%</span>`;
+  document.getElementById('klineInfo').innerHTML=`
+    <div class="item"><span class="label">开盘</span><div class="value">${d.open.toFixed(2)}</div></div>
+    <div class="item"><span class="label">收盘 ${badge}</span><div class="value" style="color:${up?'#3fb950':'#f85149'}">${d.close.toFixed(2)}</div></div>
+    <div class="item"><span class="label">最高</span><div class="value">${d.high.toFixed(2)}</div></div>
+    <div class="item"><span class="label">最低</span><div class="value">${d.low.toFixed(2)}</div></div>`;
+  document.getElementById('lastUpdate').textContent=`✅ ${new Date().toLocaleTimeString('zh-CN')}`;
+}
+
+// ====================== STOCK SWITCH ======================
+async function selectStock(stock) {
+  currentStock=stock;
+  document.querySelectorAll('.stock-btn').forEach(b=>b.classList.toggle('active',b.dataset.code===stock.code));
+  document.getElementById('lastUpdate').textContent='🔄 加载中...';
+
+  // Try live data first
+  let data = await fetchFromTencent(stock.code, 90);
+  const ds = document.getElementById('dataSource');
+
+  if (data && data.length > 10) {
+    ds.textContent = '📡 腾讯行情';
+    ds.style.color = '#3fb950';
+  } else {
+    // Fallback to sample data
+    data = generateSampleData();
+    ds.textContent = '📦 示例数据(离线)';
+    ds.style.color = '#f0b90b';
+  }
+
+  allData = data;
+  renderCharts(data);
+}
+
+function toggleMA(idx) { maVisibility[idx]=!maVisibility[idx]; if(allData.length) renderCharts(allData); }
+
+// ====================== QUOTES ======================
+async function updateQuotePrices() {
+  const quotes = await fetchQuotesFromSina(WATCHLIST.map(s=>s.qt));
+  const listEl = document.getElementById('stockList');
+  listEl.innerHTML = WATCHLIST.map(s => {
+    const q = quotes.find(qq => qq.code === s.qt);
+    const up = q && parseFloat(q.changePercent) >= 0;
+    const cls = up ? '#3fb950' : '#f85149';
+    return `<div class="stock-btn" data-code="${s.code}" onclick="selectStock(WATCHLIST.find(w=>w.code==='${s.code}'))">
+      <span>${s.name}<span class="code"> ${s.code}</span><br><span style="font-size:9px;color:#58a6ff">${s.industry||''}</span></span>
+      <span><span class="price" style="color:${q?cls:'#8b949e'}">${q?q.price:'--'}</span>
+      <span class="change" style="color:${q?cls:'#8b949e'}">${q&&q.changePercent!==undefined?(up?'+':'')+q.changePercent+'%':'--'}</span></span></div>`;
+  }).join('');
+  document.querySelectorAll('.stock-btn').forEach(b=>b.classList.toggle('active',b.dataset.code===currentStock.code));
+}
+
+// ====================== INIT ======================
+async function init() {
+  mainChart = echarts.init(document.getElementById('mainChart'));
+  volChart = echarts.init(document.getElementById('volChart'));
+  echarts.init(document.getElementById('indChart'));
+  echarts.init(document.getElementById('subChart'));
+  mainChart.group='kline'; volChart.group='kline'; echarts.connect('kline');
+
+  document.getElementById('marketStatus').textContent = '🔄 加载数据...';
+  document.getElementById('marketStatus').className = 'status closed';
+
+  // Try to load live data for first stock
+  await selectStock(currentStock);
+  // Try to fetch quotes (may fail silently if network blocked)
+  updateQuotePrices().catch(() => {});
+
+  // Status after load
+  const isLive = allData.length > 0 && document.getElementById('dataSource').textContent.includes('腾讯');
+  const st = document.getElementById('marketStatus');
+  if (isLive) {
+    st.textContent = '📡 实时数据';
+    st.className = 'status open';
+  } else {
+    st.textContent = '📦 离线演示';
+    st.className = 'status closed';
+  }
+
+  // Fast quote refresh during trading hours (10s), slow otherwise (60s)
+  setInterval(() => {
+    updateQuotePrices().catch(() => {});
+  }, 10000);
+
+  // K-line full refresh every 5 minutes during trading
+  setInterval(async () => {
+    const now = new Date();
+    const tradingHours = now.getHours() >= 9 && now.getHours() <= 15;
+    const day = now.getDay();
+    const isWeekday = day > 0 && day < 6;
+    if (tradingHours && isWeekday && now.getMinutes() % 5 === 0 && now.getSeconds() < 15) {
+      await selectStock(currentStock);
+    }
+  }, 15000);
+}
+
+window.addEventListener('DOMContentLoaded', init);
+window.addEventListener('resize', () => {
+  mainChart?.resize(); volChart?.resize();
+  const ic = echarts.getInstanceByDom(document.getElementById('indChart'));
+  const sc = echarts.getInstanceByDom(document.getElementById('subChart'));
+  ic?.resize(); sc?.resize();
+});
+window.selectStock = selectStock;
+window.toggleMA = toggleMA;
+window.toggleInd = toggleInd;
+window.toggleFullscreen = function() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen();
+  }
+};
+</script>
+</body>
+</html>
