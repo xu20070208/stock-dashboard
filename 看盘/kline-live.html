@@ -206,7 +206,7 @@ h1 { font-size: 18px; color: #58a6ff; margin-bottom: 2px; }
       <button class="ind-btn" onclick="toggleInd('rsi')">RSI(强弱)</button>
       <button class="ind-btn" onclick="toggleInd('boll')">BOLL(布林带)</button>
     </div>
-    <div style="font-size:9px;color:#8b949e;margin-top:4px" id="indHint">💡 MACD金叉=看涨 | 死叉=看跌 | 底背离=反转</div>
+    <div style="font-size:9px;color:#8b949e;margin-top:4px" id="indHint">💡 MACD金叉=偏强 | 死叉=偏弱 | 底背离=趋势可能变化</div>
   </div>
 
   <div class="section">
@@ -435,7 +435,7 @@ let currentInd = 'macd';
 function toggleInd(name) {
   currentInd = name;
   document.querySelectorAll('.ind-btn').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase().includes(name)));
-  const hints = { macd:'💡 MACD金叉(DIF上穿DEA)=看涨 | 死叉=看跌 | 底背离=反转信号', kdj:'💡 KDJ<20超卖=可能反弹 | KDJ>80超买=可能回调 | K上穿D=金叉买入', rsi:'💡 RSI<30超卖=低估 | RSI>70超买=高估 | RSI=50分界线', boll:'💡 价格触及下轨=可能反弹 | 触及上轨=可能回落 | 收窄=变盘前兆' };
+  const hints = { macd:'💡 仅供参考：MACD金叉(DIF上穿DEA)=偏强 | 死叉=偏弱 | 底背离=趋势可能反转', kdj:'💡 仅供参考：KDJ<20超卖区域 | KDJ>80超买区域 | K上穿D=金叉形态', rsi:'💡 仅供参考：RSI<30超卖区域 | RSI>70超买区域 | RSI=50分界线', boll:'💡 仅供参考：价格触及下轨区域 | 触及上轨区域 | 收窄=波动可能加大' };
   document.getElementById('indHint').textContent = hints[name] || '';
   if (allData.length) renderCharts(allData);
 }
@@ -454,8 +454,8 @@ function scanSignals(data, code) {
   if (macd.dif.length >= 3 && macd.dea.length >= 3) {
     const dL = macd.dif[macd.dif.length-1][1], deL = macd.dea[macd.dea.length-1][1];
     const dP = macd.dif[macd.dif.length-2][1], deP = macd.dea[macd.dea.length-2][1];
-    if (dL > deL && dP <= deP) signals.push({ type:'positive', text:'MACD金叉', detail:'DIF上穿DEA，短线看涨信号' });
-    if (dL < deL && dP >= deP) signals.push({ type:'negative', text:'MACD死叉', detail:'DIF下穿DEA，短线看跌信号' });
+    if (dL > deL && dP <= deP) signals.push({ type:'positive', text:'MACD金叉', detail:'DIF上穿DEA，短线偏强（仅供参考）' });
+    if (dL < deL && dP >= deP) signals.push({ type:'negative', text:'MACD死叉', detail:'DIF下穿DEA，短线偏弱（仅供参考）' });
   }
 
   // KDJ signals
@@ -490,8 +490,8 @@ function scanSignals(data, code) {
     const ma20 = data.slice(-20).reduce((s,d)=>s+d.close,0)/20;
     const prevMa5 = data.slice(-6,-1).reduce((s,d)=>s+d.close,0)/5;
     const prevMa20 = data.slice(-21,-1).reduce((s,d)=>s+d.close,0)/20;
-    if (ma5 > ma20 && prevMa5 <= prevMa20) signals.push({ type:'positive', text:'MA金叉', detail:'MA5上穿MA20，中期看涨' });
-    if (ma5 < ma20 && prevMa5 >= prevMa20) signals.push({ type:'negative', text:'MA死叉', detail:'MA5下穿MA20，中期看跌' });
+    if (ma5 > ma20 && prevMa5 <= prevMa20) signals.push({ type:'positive', text:'MA金叉', detail:'MA5上穿MA20，中期偏强（仅供参考）' });
+    if (ma5 < ma20 && prevMa5 >= prevMa20) signals.push({ type:'negative', text:'MA死叉', detail:'MA5下穿MA20，中期偏弱（仅供参考）' });
   }
 
   // Volume anomaly
@@ -563,7 +563,7 @@ function analyzeKLine(data, idx) {
     const prev = data[idx-1], prevUp = prev.close >= prev.open;
     if (up !== prevUp && body > Math.abs(prev.close-prev.open)*2) {
       if (prevUp && d.open > prev.close && d.close < prev.open) {
-        emoji = '🔄'; name = '看跌吞没'; explain = '前一天小阳线，今天大阴线全吞了。卖方突然发力，趋势可能从涨转跌。短线该跑了。';
+        emoji = '🔄'; name = '看跌吞没'; explain = '前一天小阳线，今天大阴线全吞了。卖方突然发力，趋势可能从涨转跌。短线需注意。';
       } else if (!prevUp && d.open < prev.close && d.close > prev.open) {
         emoji = '🔄'; name = '看涨吞没'; explain = '前一天小阴线，今天大阳线全吞了。买方强力反攻，趋势可能从跌转涨。可以关注。';
       }
